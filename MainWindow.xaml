@@ -8,16 +8,23 @@
         <DockPanel>
             <DockPanel DockPanel.Dock="Top">
                 <Button Content="Refresh"
+                        Width="70"
                         DockPanel.Dock="Right"
                         Command="Refresh"/>
-                <ComboBox Name="WindowBox" 
-                          DisplayMemberPath="Key"
-                          SelectionChanged="SelectedWindowChanged"/>
+                <ComboBox ItemsSource="{Binding AvailableWindows}"
+                          SelectedValue="{Binding SelectedWindow}"
+                          Name="WindowBox"
+                          SelectedValuePath="Value"
+                          DisplayMemberPath="Key"/>
             </DockPanel>
-            <Slider DockPanel.Dock="Bottom" 
-                    Name="OpacitySlider" 
-                    Maximum="255" 
-                    Value="255"/>
+            <DockPanel DockPanel.Dock="Bottom">
+                <Label Content="Opacity:" Margin="5,0"/>
+                <Slider Name="OpacitySlider" 
+                        VerticalAlignment="Center"
+                        Margin="5,0"
+                        Maximum="255"                         
+                        Value="255"/>
+            </DockPanel>
             <Label/>
         </DockPanel>
     </Grid>

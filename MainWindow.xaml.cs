@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Text;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 
@@ -13,71 +13,74 @@ namespace Thumbs
         WindowInteropHelper WIH;
         IntPtr ThumbHandle;
 
+        public ObservableCollection<KeyValuePair<string, IntPtr>> AvailableWindows { get; private set; }
+
+        public static DependencyProperty SelectedWindowProperty =
+            DependencyProperty.Register("SelectedWindow",
+                                        typeof(IntPtr),
+                                        typeof(MainWindow),
+                                        new UIPropertyMetadata(new IntPtr(-1)));
+
+        public IntPtr SelectedWindow
+        {
+            get { return (IntPtr)GetValue(SelectedWindowProperty); }
+            set { SetValue(SelectedWindowProperty, value); }
+        }
+        
         public MainWindow()
         {
             InitializeComponent();
 
+            AvailableWindows = new ObservableCollection<KeyValuePair<string, IntPtr>>();
+
+            DataContext = this;
+
             WIH = new WindowInteropHelper(this);
 
-            Loaded += (s, e) => GetWindows();
+            Loaded += (s, e) => RefreshWindows();
             OpacitySlider.ValueChanged += (s, e) => UpdateThumb();
             SizeChanged += (s, e) => UpdateThumb();
+            
+            WindowBox.SelectionChanged += (s, e) =>
+                {
+                    if (WindowBox.SelectedIndex != -1)
+                    {
+                        if (ThumbHandle != IntPtr.Zero)
+                            DWMApi.DwmUnregisterThumbnail(ThumbHandle);
 
-            CommandBindings.Add(new CommandBinding(NavigationCommands.Refresh, (s, e) => Refresh()));
+                        if (DWMApi.DwmRegisterThumbnail(WIH.Handle, SelectedWindow, out ThumbHandle) == 0)
+                            UpdateThumb();
+                    }
+                    else WindowBox.SelectedIndex = 0;
+                };
+
+            CommandBindings.Add(new CommandBinding(NavigationCommands.Refresh, (s, e) =>
+                {
+                    if (ThumbHandle != IntPtr.Zero)
+                        DWMApi.DwmUnregisterThumbnail(ThumbHandle);
+
+                    RefreshWindows();
+                }));
         }
 
-        #region Retrieve list of windows
-        List<KeyValuePair<string, IntPtr>> AvailableWindows;
-
-        void GetWindows()
+        void RefreshWindows()
         {
-            AvailableWindows = new List<KeyValuePair<string, IntPtr>>();
-            User32.EnumWindows(Callback, 0);
+            AvailableWindows.Clear();
 
-            WindowBox.Items.Clear();
+            User32.EnumWindows((hwnd, e) =>
+                {
+                    if (WIH.Handle != hwnd && (User32.GetWindowLongA(hwnd, User32.GWL_STYLE) & User32.TARGETWINDOW) == User32.TARGETWINDOW)
+                    {
+                        var sb = new StringBuilder(100);
+                        User32.GetWindowText(hwnd, sb, sb.Capacity);
 
-            foreach (var w in AvailableWindows)
-                WindowBox.Items.Add(w);
+                        AvailableWindows.Add(new KeyValuePair<string, IntPtr>(sb.ToString(), hwnd));
+                    }
 
-            WindowBox.SelectedIndex = 0;
-        }
+                    return true;
+                }, 0);
 
-        bool Callback(IntPtr hwnd, int lParam)
-        {
-            if (WIH.Handle != hwnd && (User32.GetWindowLongA(hwnd, User32.GWL_STYLE) & User32.TARGETWINDOW) == User32.TARGETWINDOW)
-            {
-                var sb = new StringBuilder(100);
-                User32.GetWindowText(hwnd, sb, sb.Capacity);
-
-                AvailableWindows.Add(new KeyValuePair<string, IntPtr>(sb.ToString(), hwnd));
-            }
-
-            return true; //continue enumeration
-        }
-        #endregion
-
-        void Refresh()
-        {
-            if (ThumbHandle != IntPtr.Zero)
-                DWMApi.DwmUnregisterThumbnail(ThumbHandle);
-
-            GetWindows();
-        }
-
-        void SelectedWindowChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (WindowBox.SelectedIndex != -1)
-            {
-                var w = (KeyValuePair<string, IntPtr>)WindowBox.SelectedItem;
-
-                if (ThumbHandle != IntPtr.Zero)
-                    DWMApi.DwmUnregisterThumbnail(ThumbHandle);
-
-                int i = DWMApi.DwmRegisterThumbnail(WIH.Handle, w.Value, out ThumbHandle);
-
-                if (i == 0)
-                    UpdateThumb();
-            }
+            SelectedWindow = AvailableWindows[0].Value;
         }
 
         void UpdateThumb()
@@ -87,17 +90,18 @@ namespace Thumbs
                 PSIZE size;
                 DWMApi.DwmQueryThumbnailSourceSize(ThumbHandle, out size);
 
-                DWM_THUMBNAIL_PROPERTIES props = new DWM_THUMBNAIL_PROPERTIES();
+                DWM_THUMBNAIL_PROPERTIES props = new DWM_THUMBNAIL_PROPERTIES()
+                {
+                    fVisible = true,
+                    dwFlags = DWMApi.DWM_TNP_VISIBLE | DWMApi.DWM_TNP_RECTDESTINATION | DWMApi.DWM_TNP_OPACITY,
+                    opacity = (byte)OpacitySlider.Value,
+                    rcDestination = new Rect(5, 30, (int)ActualWidth - 20, (int)ActualHeight - 60)
+                };
 
-                props.fVisible = true;
-                props.dwFlags = DWMApi.DWM_TNP_VISIBLE | DWMApi.DWM_TNP_RECTDESTINATION | DWMApi.DWM_TNP_OPACITY;
-                props.opacity = (byte)OpacitySlider.Value;
-                props.rcDestination = new Rect(5, 30, (int)Width - 20, (int)Height - 60);
-
-                if (size.x < Width)
+                if (size.x < ActualWidth)
                     props.rcDestination.Right = props.rcDestination.Left + size.x;
 
-                if (size.y < Height)
+                if (size.y < ActualHeight)
                     props.rcDestination.Bottom = props.rcDestination.Top + size.y;
 
                 DWMApi.DwmUpdateThumbnailProperties(ThumbHandle, ref props);
