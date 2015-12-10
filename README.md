@@ -1,5 +1,5 @@
 # Thumbs
-WPF DWM Thumbnail Viewer
+WPF DWM Thumbnail Viewer  
 Ported from http://community.bartdesmet.net/blogs/bart/archive/2006/10/05/4495.aspx
 
 View Thumbnails of Windows as they are generated in Desktop Windows Manager
