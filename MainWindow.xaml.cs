@@ -8,12 +8,12 @@ using System.Windows.Interop;
 
 namespace Thumbs
 {
-    public partial class MainWindow : Window
+    public partial class MainWindow
     {
-        WindowInteropHelper WIH;
-        IntPtr ThumbHandle;
+        readonly WindowInteropHelper _wih;
+        IntPtr _thumbHandle;
 
-        public ObservableCollection<KeyValuePair<string, IntPtr>> AvailableWindows { get; private set; }
+        public ObservableCollection<KeyValuePair<string, IntPtr>> AvailableWindows { get; } = new ObservableCollection<KeyValuePair<string, IntPtr>>();
 
         public static DependencyProperty SelectedWindowProperty =
             DependencyProperty.Register("SelectedWindow",
@@ -30,12 +30,10 @@ namespace Thumbs
         public MainWindow()
         {
             InitializeComponent();
-
-            AvailableWindows = new ObservableCollection<KeyValuePair<string, IntPtr>>();
-
+            
             DataContext = this;
 
-            WIH = new WindowInteropHelper(this);
+            _wih = new WindowInteropHelper(this);
 
             Loaded += (s, e) => RefreshWindows();
             OpacitySlider.ValueChanged += (s, e) => UpdateThumb();
@@ -45,10 +43,10 @@ namespace Thumbs
                 {
                     if (WindowBox.SelectedIndex != -1)
                     {
-                        if (ThumbHandle != IntPtr.Zero)
-                            DWMApi.DwmUnregisterThumbnail(ThumbHandle);
+                        if (_thumbHandle != IntPtr.Zero)
+                            DWMApi.DwmUnregisterThumbnail(_thumbHandle);
 
-                        if (DWMApi.DwmRegisterThumbnail(WIH.Handle, SelectedWindow, out ThumbHandle) == 0)
+                        if (DWMApi.DwmRegisterThumbnail(_wih.Handle, SelectedWindow, out _thumbHandle) == 0)
                             UpdateThumb();
                     }
                     else WindowBox.SelectedIndex = 0;
@@ -56,8 +54,8 @@ namespace Thumbs
 
             CommandBindings.Add(new CommandBinding(NavigationCommands.Refresh, (s, e) =>
                 {
-                    if (ThumbHandle != IntPtr.Zero)
-                        DWMApi.DwmUnregisterThumbnail(ThumbHandle);
+                    if (_thumbHandle != IntPtr.Zero)
+                        DWMApi.DwmUnregisterThumbnail(_thumbHandle);
 
                     RefreshWindows();
                 }));
@@ -69,7 +67,7 @@ namespace Thumbs
 
             User32.EnumWindows((hwnd, e) =>
                 {
-                    if (WIH.Handle != hwnd && (User32.GetWindowLongA(hwnd, User32.GWL_STYLE) & User32.TARGETWINDOW) == User32.TARGETWINDOW)
+                    if (_wih.Handle != hwnd && (User32.GetWindowLongA(hwnd, User32.GWL_STYLE) & User32.TARGETWINDOW) == User32.TARGETWINDOW)
                     {
                         var sb = new StringBuilder(100);
                         User32.GetWindowText(hwnd, sb, sb.Capacity);
@@ -85,27 +83,27 @@ namespace Thumbs
 
         void UpdateThumb()
         {
-            if (ThumbHandle != IntPtr.Zero)
+            if (_thumbHandle == IntPtr.Zero)
+                return;
+
+            PSIZE size;
+            DWMApi.DwmQueryThumbnailSourceSize(_thumbHandle, out size);
+
+            var props = new DWM_THUMBNAIL_PROPERTIES
             {
-                PSIZE size;
-                DWMApi.DwmQueryThumbnailSourceSize(ThumbHandle, out size);
+                fVisible = true,
+                dwFlags = DWMApi.DWM_TNP_VISIBLE | DWMApi.DWM_TNP_RECTDESTINATION | DWMApi.DWM_TNP_OPACITY,
+                opacity = (byte)OpacitySlider.Value,
+                rcDestination = new Rect(5, 30, (int)ActualWidth - 20, (int)ActualHeight - 60)
+            };
 
-                DWM_THUMBNAIL_PROPERTIES props = new DWM_THUMBNAIL_PROPERTIES()
-                {
-                    fVisible = true,
-                    dwFlags = DWMApi.DWM_TNP_VISIBLE | DWMApi.DWM_TNP_RECTDESTINATION | DWMApi.DWM_TNP_OPACITY,
-                    opacity = (byte)OpacitySlider.Value,
-                    rcDestination = new Rect(5, 30, (int)ActualWidth - 20, (int)ActualHeight - 60)
-                };
+            if (size.x < ActualWidth)
+                props.rcDestination.Right = props.rcDestination.Left + size.x;
 
-                if (size.x < ActualWidth)
-                    props.rcDestination.Right = props.rcDestination.Left + size.x;
+            if (size.y < ActualHeight)
+                props.rcDestination.Bottom = props.rcDestination.Top + size.y;
 
-                if (size.y < ActualHeight)
-                    props.rcDestination.Bottom = props.rcDestination.Top + size.y;
-
-                DWMApi.DwmUpdateThumbnailProperties(ThumbHandle, ref props);
-            }
+            DWMApi.DwmUpdateThumbnailProperties(_thumbHandle, ref props);
         }
     }
 }
