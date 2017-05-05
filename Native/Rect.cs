@@ -3,17 +3,6 @@
 namespace Thumbs
 {
     [StructLayout(LayoutKind.Sequential)]
-    struct DWM_THUMBNAIL_PROPERTIES
-    {
-        public int dwFlags;
-        public Rect rcDestination;
-        public Rect rcSource;
-        public byte opacity;
-        public bool fVisible;
-        public bool fSourceClientAreaOnly;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
     struct Rect
     {
         public Rect(int left, int top, int right, int bottom)
@@ -28,12 +17,9 @@ namespace Thumbs
         public int Top;
         public int Right;
         public int Bottom;
-    }
 
-    [StructLayout(LayoutKind.Sequential)]
-    struct PSIZE
-    {
-        public int x;
-        public int y;
+        public int Width => Right - Left;
+
+        public int Height => Bottom - Top;
     }
 }

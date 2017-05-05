@@ -1,29 +1,25 @@
 ﻿<Window x:Class="Thumbs.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Thumbs"
         Title="Thumbs" 
         Height="350" 
         Width="525">
-    <Grid>
+    <Window.DataContext>
+        <local:MainViewModel/>
+    </Window.DataContext>
+    <Grid Margin="5">
         <DockPanel>
             <DockPanel DockPanel.Dock="Top">
                 <Button Content="Refresh"
                         Width="70"
+                        Margin="5,0,0,0"
                         DockPanel.Dock="Right"
-                        Command="Refresh"/>
+                        Command="{Binding RefreshCommand}"/>
                 <ComboBox ItemsSource="{Binding AvailableWindows}"
-                          SelectedValue="{Binding SelectedWindow}"
-                          Name="WindowBox"
+                          SelectedValue="{Binding SelectedWindow, Mode=TwoWay}"
                           SelectedValuePath="Value"
                           DisplayMemberPath="Key"/>
-            </DockPanel>
-            <DockPanel DockPanel.Dock="Bottom">
-                <Label Content="Opacity:" Margin="5,0"/>
-                <Slider Name="OpacitySlider" 
-                        VerticalAlignment="Center"
-                        Margin="5,0"
-                        Maximum="255"                         
-                        Value="255"/>
             </DockPanel>
             <Label/>
         </DockPanel>
